@@ -6,6 +6,7 @@ A CLI chatbot built with Python and the Groq API that lets users explicitly remo
 
 ## The Problem
 
+LLMs don't have an option to remove a particular context from their memory list, which creates a problem when you want to delete something sent in an unstable state that has now taken significant importance in the model's responses.
 Large language models have no memory between API calls. To simulate a continuous conversation, every message — both user and assistant — gets stored in a list and re-sent to the model on every call. The model reads that entire list each time and responds as if it has been in the conversation the whole time.
 
 This design works well in stable conversations. But it creates a real problem in longer sessions:
