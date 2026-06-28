@@ -7,21 +7,21 @@ messages = []
 backup = None
 
 def get_time():
-    # Returns current time as a readable string.
-    # datetime.now() gives a datetime object representing right now.
-    # .strftime() formats it into a string. %Y=year, %m=month, %d=day, %H=hour, %M=minute
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 def minutes_since(time_str):
-    # Takes a time string like "2026-06-28 14:32" and returns how many minutes ago that was.
-    # We parse the string back into a datetime object, then subtract from now.
+    # Useful for displaying how long ago a message was sent in /history
     past = datetime.strptime(time_str, "%Y-%m-%d %H:%M")
     diff = datetime.now() - past
-    # diff is a timedelta object. total_seconds() gives the gap as a raw number.
     return diff.total_seconds() / 60
 
+def gap_between(time_str1, time_str2):
+    # Calculates minutes between two message timestamps
+    t1 = datetime.strptime(time_str1, "%Y-%m-%d %H:%M")
+    t2 = datetime.strptime(time_str2, "%Y-%m-%d %H:%M")
+    return (t2 - t1).total_seconds() / 60
+
 def format_gap(minutes):
-    # Converts a number of minutes into a readable string like "3 hours and 22 minutes".
     hours = int(minutes // 60)
     mins = int(minutes % 60)
     if hours > 0:
@@ -29,24 +29,16 @@ def format_gap(minutes):
     return f"{mins} minute{'s' if mins != 1 else ''}"
 
 def build_api_messages():
-    # Groq doesn't accept the "time" field — only "role" and "content".
-    # This builds a clean copy of messages without timestamps.
-    # It also checks if a time gap message needs to be injected.
     cleaned = []
     for i, msg in enumerate(messages):
-        # Check gap between this message and the previous one
-        if i > 0:
-            prev_time = messages[i - 1]["time"]
-            gap_minutes = minutes_since(prev_time)
-            # Only inject a gap note if more than 3 hours (180 minutes) passed
-            # and only before user messages (not assistant replies)
-            if gap_minutes >= 180 and msg["role"] == "user":
+        if i > 0 and msg["role"] == "user":
+            gap_minutes = gap_between(messages[i-1]["time"], msg["time"])
+            if gap_minutes >= 180:
                 gap_text = format_gap(gap_minutes)
                 cleaned.append({
                     "role": "system",
                     "content": f"Note: {gap_text} passed since the last message. The user's context or mental state may have shifted."
                 })
-        # Add the message without the "time" field
         cleaned.append({"role": msg["role"], "content": msg["content"]})
     return cleaned
 
@@ -111,10 +103,7 @@ while True:
             print("Unknown command. Available: /history, /prune, /undo")
         continue
 
-    # Store user message WITH timestamp
     messages.append({"role": "user", "content": user_input, "time": get_time()})
-
-    # Build a clean copy for the API (no timestamps, gap note injected if needed)
     api_messages = build_api_messages()
 
     response = client.chat.completions.create(
@@ -123,7 +112,5 @@ while True:
     )
 
     assistant_message = response.choices[0].message.content
-
-    # Store assistant message WITH timestamp
     messages.append({"role": "assistant", "content": assistant_message, "time": get_time()})
     print(f"\nAssistant: {assistant_message}")
